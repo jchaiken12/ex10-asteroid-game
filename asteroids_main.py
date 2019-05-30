@@ -37,7 +37,10 @@ class GameRunner:
             self.__screen.draw_asteroid(asteroid, ast_xs[i], ast_ys[i])
 
         self.__life_count = 0
+        self.__score = 0
+        self.__torpedo_ls = []
 
+    #TODO must also check ship size to be sure asteroid is not intersecting that as well
     def non_colliding_start(self, ship, asteroids_amount):
         """
 
@@ -56,13 +59,17 @@ class GameRunner:
 
         ast_xs = []
         ast_ys = []
+        ast_size = 3 # todo make the call to contant called the size
+        sh_size = self.__player.get_size()
         # ensure there are no collisions of asteroids and the player
         while len(ast_xs) <= asteroids_amount or len(ast_ys) <= asteroids_amount:
             x = random.randint(MIN_X, MAX_X)
-            if x not in list(range(ship.getx() - 3, ship.getx() + 4)) and len(ast_xs) <= asteroids_amount:
+            if x not in list(range(ship.getx() - ast_size, ship.getx() + ast_size+1)) \
+                    and len(ast_xs) <= asteroids_amount:
                 ast_xs.append(x)
             y = random.randint(MIN_Y, MAX_Y)
-            if y not in list(range(ship.gety() - 3, ship.gety() + 4)) and len(ast_ys) <= asteroids_amount:
+            if y not in list(range(ship.gety() - ast_size, ship.gety() + ast_size+1)) \
+                    and len(ast_ys) <= asteroids_amount:
                 ast_ys.append(y)
 
         return ast_xs, ast_ys
@@ -83,8 +90,9 @@ class GameRunner:
 
         if up_pressed:
             heading_rad = math.radians(ship.dir)
-            ship.x_speed = ship.x_speed + math.cos(heading_rad)
-            ship.y_speed = ship.y_speed + math.sin(heading_rad)
+            x_speed = ship.get_speed()[0] + math.cos(heading_rad)
+            y_speed = ship.get_speed()[1] + math.sin(heading_rad)
+            ship.set_speed(x_speed, y_speed)
 
     def run(self):
         self._do_loop()
@@ -98,31 +106,73 @@ class GameRunner:
         self.__screen.update()
         self.__screen.ontimer(self._do_loop, 5)
 
+    def shoot(self, ship):
+
+        space_pressed = self.__screen.is_space_pressed()
+
+        if space_pressed:
+            ship_dir = math.radians(ship.get_dir())
+            x_speed = ship.get_speed()[0] + 2*math.cos(ship_dir)
+            y_speed = ship.get_speed()[1] + 2*math.sin(ship_dir)
+            torpedo = Torpedo(ship.getx(),ship.gety(), x_speed, y_speed, ship.get_dir())
+            self.__screen.register_torpedo(torpedo)
+            self.__screen.draw_torpedo(torpedo, ship.getx(),ship.gety(), ship.get_dir())
+            self.__torpedo_ls.append(torpedo)
+
+    def split_ast(self, ast):
+        pass
+
     def _game_loop(self):
         # Your code goes here
         ship = self.__player
         left = self.__screen.is_left_pressed()
         right = self.__screen.is_right_pressed()
         up_pressed = self.__screen.is_up_pressed()
+
         self.move_dir(ship, left, right)
         self.move(ship)
+
+        self.speed_up(ship, up_pressed)
+        self.__screen.draw_ship(ship.x, ship.y, ship.dir)
+        self.shoot(ship)
+
+        for i in range(len(self.__torpedo_ls)):
+            tor = self.__torpedo_ls[i]
+            self.move(tor)
+            self.__screen.draw_torpedo(tor, tor.getx(),tor.gety(), tor.get_dir())
+
         i = 0
         while i <= len(self.__ast_ls)-1:
             asteroid = self.__ast_ls[i]
             self.move(asteroid)
             self.__screen.draw_asteroid(asteroid, asteroid.getx(), asteroid.gety())
 
-            if asteroid.has_intersection(ship) and self.__life_count <= 2:
+            if asteroid.has_intersection(ship) and ship.has_intersection(asteroid) \
+                    and self.__life_count <= 2:
                 self.__screen.show_message('You messed up', 'get better kid and maybe you get a popsicle')
                 self.__screen.remove_life()
                 self.__screen.unregister_asteroid(asteroid)
                 del self.__ast_ls[i]
                 self.__life_count = self.__life_count + 1
-                print(self.__life_count)
             i = i + 1
 
-        self.speed_up(ship, up_pressed)
-        self.__screen.draw_ship(ship.x, ship.y, ship.dir)
+        for tor in self.__torpedo_ls:
+            j = 0
+            while j <= len(self.__ast_ls) - 1:
+                ast = self.__ast_ls[j]
+                if tor.has_intersection(ast) and ast.has_intersection(tor):
+                    if ast.get_size() == 3:
+                        self.__score += 20
+                        self.split_ast(ast)
+                    elif ast.get_size() == 2:
+                        self.__score += 50
+                    elif ast.get_size == 1:
+                        self.__score += 100
+                        del self.__ast_ls[j]
+                    self.__screen.set_score(self.__score)
+                j += 1
+
+
 
 
 def main(amount):

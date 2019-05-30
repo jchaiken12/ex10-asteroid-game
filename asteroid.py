@@ -17,6 +17,9 @@ class Asteroid:
     def gety(self):
         return self.y
 
+    def get_size(self):
+        return self.size
+
     def set_x(self, x):
         self.x = x
 
